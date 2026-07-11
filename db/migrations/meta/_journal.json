@@ -8,6 +8,13 @@
       "when": 1783765684397,
       "tag": "0000_dazzling_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783770351343,
+      "tag": "0001_swift_diamondback",
+      "breakpoints": true
     }
   ]
 }

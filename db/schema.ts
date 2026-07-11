@@ -1,68 +1,190 @@
+import { relations } from "drizzle-orm";
 import {
   pgTable,
   text,
   timestamp,
-  vector,
+  boolean,
   integer,
+  vector,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
 
-// ---------- USER (log jo login karte hain) ----------
-// Note: Better Auth Day 3 pe iski poori tables banayega,
-// abhi hum ek simple version rakh rahe hain reference ke liye.
+// ==========================================
+// 1. BETTER AUTH TABLES (DO NOT CHANGE IDs)
+// ==========================================
+
 export const user = pgTable("user", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  name: text("name"),
-  email: text("email").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ---------- ORGANIZATION (company / team) ----------
-export const organization = pgTable("organization", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
+  id: text("id").primaryKey(), // Better Auth handles this ID
   name: text("name").notNull(),
-  slug: text("slug").unique(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
 });
 
-// ---------- NOTE (meeting note) ----------
+export const session = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => new Date())
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    activeOrganizationId: text("active_organization_id"),
+  },
+  (table) => [index("session_userId_idx").on(table.userId)],
+);
+
+export const account = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("account_userId_idx").on(table.userId)],
+);
+
+export const verification = pgTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("verification_identifier_idx").on(table.identifier)],
+);
+
+export const organization = pgTable(
+  "organization",
+  {
+    id: text("id").primaryKey(), // Better Auth handles this ID
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logo: text("logo"),
+    createdAt: timestamp("created_at").notNull(),
+    metadata: text("metadata"),
+  },
+  (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
+);
+
+export const member = pgTable(
+  "member",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").default("member").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [
+    index("member_organizationId_idx").on(table.organizationId),
+    index("member_userId_idx").on(table.userId),
+  ],
+);
+
+export const invitation = pgTable(
+  "invitation",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role"),
+    status: text("status").default("pending").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    inviterId: text("inviter_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("invitation_organizationId_idx").on(table.organizationId),
+    index("invitation_email_idx").on(table.email),
+  ],
+);
+
+// ==========================================
+// 2. CORE APP TABLES (CUID2 GENERATED IDs)
+// ==========================================
+
 export const note = pgTable("note", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
-
-  // ⭐ MULTI-TENANCY: har note kis org ka hai (data leak rokta hai)
   organizationId: text("organization_id")
     .notNull()
-    .references(() => organization.id),
-
+    .references(() => organization.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   content: text("content"),
   status: text("status").default("draft").notNull(),
-
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-
-  // ⭐ SOFT-DELETE: delete karne pe mitane ke bajaye ye bhar denge
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
 });
 
-// ---------- TRANSCRIPT (recording ka likha hua text) ----------
 export const transcript = pgTable("transcript", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id").notNull().references(() => organization.id),
-  noteId: text("note_id").notNull().references(() => note.id),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  noteId: text("note_id")
+    .notNull()
+    .references(() => note.id, { onDelete: "cascade" }),
   fullText: text("full_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
 });
 
-// ---------- SUMMARY (khulasa) ----------
 export const summary = pgTable("summary", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id").notNull().references(() => organization.id),
-  noteId: text("note_id").notNull().references(() => note.id),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  noteId: text("note_id")
+    .notNull()
+    .references(() => note.id, { onDelete: "cascade" }),
   tldr: text("tldr"),
   content: text("content"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -70,26 +192,23 @@ export const summary = pgTable("summary", {
   deletedBy: text("deleted_by"),
 });
 
-// ---------- DOCUMENT_CHUNK (text ke tukray + AI vector) ----------
 export const documentChunk = pgTable(
   "document_chunk",
   {
     id: text("id").primaryKey().$defaultFn(() => createId()),
-    organizationId: text("organization_id").notNull().references(() => organization.id),
-    noteId: text("note_id").notNull().references(() => note.id),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
     chunkText: text("chunk_text").notNull(),
-
-    // ⭐ VECTOR column — AI embeddings yahan store honge (Day 6 pe use hoga)
-    // gemini-embedding-001 = 768 dimensions (numbers)
     embedding: vector("embedding", { dimensions: 768 }),
-
     createdAt: timestamp("created_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),
     deletedBy: text("deleted_by"),
   },
   (table) => [
-    // ⭐ HNSW index — vector search fast karta hai
-    // Zaroori: vector_cosine_ops likhna parta hai (warna error aata hai)
     index("embedding_hnsw_idx").using(
       "hnsw",
       table.embedding.op("vector_cosine_ops")
@@ -97,11 +216,79 @@ export const documentChunk = pgTable(
   ]
 );
 
-// ---------- USAGE_EVENT (kis ne kitna use kiya — counting ke liye) ----------
 export const usageEvent = pgTable("usage_event", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id").notNull().references(() => organization.id),
-  eventType: text("event_type").notNull(), // jaise "note_created"
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),
   quantity: integer("quantity").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ==========================================
+// 3. DRIZZLE RELATIONS (BETTER AUTH + APP)
+// ==========================================
+
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+  members: many(member),
+  invitations: many(invitation),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const organizationRelations = relations(organization, ({ many }) => ({
+  members: many(member),
+  invitations: many(invitation),
+  notes: many(note),
+  transcripts: many(transcript),
+  summaries: many(summary),
+  documentChunks: many(documentChunk),
+  usageEvents: many(usageEvent),
+}));
+
+export const memberRelations = relations(member, ({ one }) => ({
+  organization: one(organization, {
+    fields: [member.organizationId],
+    references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [member.userId],
+    references: [user.id],
+  }),
+}));
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  organization: one(organization, {
+    fields: [invitation.organizationId],
+    references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [invitation.inviterId],
+    references: [user.id],
+  }),
+}));
+
+export const noteRelations = relations(note, ({ one, many }) => ({
+  organization: one(organization, {
+    fields: [note.organizationId],
+    references: [organization.id],
+  }),
+  transcripts: many(transcript),
+  summaries: many(summary),
+  documentChunks: many(documentChunk),
+}));
