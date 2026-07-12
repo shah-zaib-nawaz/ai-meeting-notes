@@ -5,15 +5,9 @@ import {
   timestamp,
   boolean,
   integer,
-  vector,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { createId } from "@paralleldrive/cuid2";
-
-// ==========================================
-// 1. BETTER AUTH + STRIPE TABLES
-// ==========================================
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -24,9 +18,9 @@ export const user = pgTable("user", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
-    .$onUpdate(() => new Date())
+    .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-  stripeCustomerId: text("stripe_customer_id"), // Added by Stripe plugin
+  stripeCustomerId: text("stripe_customer_id"),
 });
 
 export const session = pgTable(
@@ -37,7 +31,7 @@ export const session = pgTable(
     token: text("token").notNull().unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
-      .$onUpdate(() => new Date())
+      .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
@@ -67,7 +61,7 @@ export const account = pgTable(
     password: text("password"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
-      .$onUpdate(() => new Date())
+      .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [index("account_userId_idx").on(table.userId)],
@@ -83,7 +77,7 @@ export const verification = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
-      .$onUpdate(() => new Date())
+      .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
@@ -98,7 +92,7 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
-    stripeCustomerId: text("stripe_customer_id"), // Added by Stripe plugin
+    stripeCustomerId: text("stripe_customer_id"),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
@@ -164,94 +158,6 @@ export const subscription = pgTable("subscription", {
   stripeScheduleId: text("stripe_schedule_id"),
 });
 
-// ==========================================
-// 2. CORE APP TABLES
-// ==========================================
-
-export const note = pgTable("note", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  content: text("content"),
-  status: text("status").default("draft").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-  deletedAt: timestamp("deleted_at"),
-  deletedBy: text("deleted_by"),
-});
-
-export const transcript = pgTable("transcript", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  noteId: text("note_id")
-    .notNull()
-    .references(() => note.id, { onDelete: "cascade" }),
-  fullText: text("full_text").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  deletedAt: timestamp("deleted_at"),
-  deletedBy: text("deleted_by"),
-});
-
-export const summary = pgTable("summary", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  noteId: text("note_id")
-    .notNull()
-    .references(() => note.id, { onDelete: "cascade" }),
-  tldr: text("tldr"),
-  content: text("content"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  deletedAt: timestamp("deleted_at"),
-  deletedBy: text("deleted_by"),
-});
-
-export const documentChunk = pgTable(
-  "document_chunk",
-  {
-    id: text("id").primaryKey().$defaultFn(() => createId()),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    noteId: text("note_id")
-      .notNull()
-      .references(() => note.id, { onDelete: "cascade" }),
-    chunkText: text("chunk_text").notNull(),
-    embedding: vector("embedding", { dimensions: 768 }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    deletedAt: timestamp("deleted_at"),
-    deletedBy: text("deleted_by"),
-  },
-  (table) => [
-    index("embedding_hnsw_idx").using(
-      "hnsw",
-      table.embedding.op("vector_cosine_ops")
-    ),
-  ]
-);
-
-export const usageEvent = pgTable("usage_event", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  eventType: text("event_type").notNull(),
-  quantity: integer("quantity").default(1).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ==========================================
-// 3. DRIZZLE RELATIONS (COMPLETED)
-// ==========================================
-
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
@@ -276,11 +182,6 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const organizationRelations = relations(organization, ({ many }) => ({
   members: many(member),
   invitations: many(invitation),
-  notes: many(note),
-  transcripts: many(transcript),
-  summaries: many(summary),
-  documentChunks: many(documentChunk),
-  usageEvents: many(usageEvent),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -302,55 +203,5 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
   user: one(user, {
     fields: [invitation.inviterId],
     references: [user.id],
-  }),
-}));
-
-export const noteRelations = relations(note, ({ one, many }) => ({
-  organization: one(organization, {
-    fields: [note.organizationId],
-    references: [organization.id],
-  }),
-  transcripts: many(transcript),
-  summaries: many(summary),
-  documentChunks: many(documentChunk),
-}));
-
-export const transcriptRelations = relations(transcript, ({ one }) => ({
-  note: one(note, {
-    fields: [transcript.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [transcript.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const summaryRelations = relations(summary, ({ one }) => ({
-  note: one(note, {
-    fields: [summary.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [summary.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const documentChunkRelations = relations(documentChunk, ({ one }) => ({
-  note: one(note, {
-    fields: [documentChunk.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [documentChunk.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const usageEventRelations = relations(usageEvent, ({ one }) => ({
-  organization: one(organization, {
-    fields: [usageEvent.organizationId],
-    references: [organization.id],
   }),
 }));

@@ -2,6 +2,9 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { db } from "@/db";
+import { stripe } from "@better-auth/stripe";
+import { stripeClient } from "./stripe";
+import { PLANS } from "./plans";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -47,5 +50,35 @@ export const auth = betterAuth({
     },
   },
 
-  plugins: [organization()],
+  plugins: [
+    organization(),
+    stripe({
+      stripeClient,
+      stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
+      createCustomerOnSignUp: true, // signup pe Stripe customer bhi banao
+
+      subscription: {
+        enabled: true,
+        plans: PLANS,
+
+        // ⭐ org billing entity hai (user nahi)
+        // sirf owner/admin billing chhu sakte hain
+        authorizeReference: async ({ user, referenceId }) => {
+          const member = await db.query.member.findFirst({
+            where: (m, { and, eq }) =>
+              and(
+                eq(m.userId, user.id),
+                eq(m.organizationId, referenceId)
+              ),
+          });
+          return member?.role === "owner" || member?.role === "admin";
+        },
+      },
+
+      // organizations ko billing entity banao
+      organization: {
+        enabled: true,
+      },
+    }),
+  ],
 });

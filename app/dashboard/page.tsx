@@ -3,6 +3,7 @@ import { getActiveOrgId } from "@/lib/get-active-org";
 import { getNotesForOrg } from "@/lib/notes";
 import { createNote } from "@/lib/actions";
 import { redirect } from "next/navigation";
+import { canPerformAction } from "@/lib/entitlements"; // Naya import
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -10,6 +11,15 @@ export default async function DashboardPage() {
 
   const orgId = await getActiveOrgId();
   const notes = orgId ? await getNotesForOrg(orgId) : [];
+
+  // 🧪 TEMPORARY TEST: Entitlement check karne ke liye log
+  if (orgId) {
+    const check = await canPerformAction(orgId, "create_note");
+    console.log("-----------------------------------------");
+    console.log(`[Entitlement Engine Check for Org: ${orgId}]`);
+    console.log("Can create note?:", check);
+    console.log("-----------------------------------------");
+  }
 
   return (
     <div style={{ maxWidth: 600, margin: "40px auto", padding: 20 }}>
@@ -32,7 +42,7 @@ export default async function DashboardPage() {
       {notes.length === 0 ? (
         <p>Abhi koi note nahi. Upar se ek banao!</p>
       ) : (
-        <ul>
+        <ul style={{ paddingLeft: 20 }}>
           {notes.map((n) => (
             <li key={n.id} style={{ marginBottom: 8 }}>
               <strong>{n.title}</strong>

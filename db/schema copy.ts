@@ -12,11 +12,11 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 
 // ==========================================
-// 1. BETTER AUTH + STRIPE TABLES
+// 1. BETTER AUTH TABLES (DO NOT CHANGE IDs)
 // ==========================================
 
 export const user = pgTable("user", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey(), // Better Auth handles this ID
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
@@ -26,7 +26,6 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-  stripeCustomerId: text("stripe_customer_id"), // Added by Stripe plugin
 });
 
 export const session = pgTable(
@@ -92,13 +91,12 @@ export const verification = pgTable(
 export const organization = pgTable(
   "organization",
   {
-    id: text("id").primaryKey(),
+    id: text("id").primaryKey(), // Better Auth handles this ID
     name: text("name").notNull(),
     slug: text("slug").notNull().unique(),
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
-    stripeCustomerId: text("stripe_customer_id"), // Added by Stripe plugin
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
@@ -144,28 +142,8 @@ export const invitation = pgTable(
   ],
 );
 
-export const subscription = pgTable("subscription", {
-  id: text("id").primaryKey(),
-  plan: text("plan").notNull(),
-  referenceId: text("reference_id").notNull(),
-  stripeCustomerId: text("stripe_customer_id"),
-  stripeSubscriptionId: text("stripe_subscription_id"),
-  status: text("status").default("incomplete"),
-  periodStart: timestamp("period_start"),
-  periodEnd: timestamp("period_end"),
-  trialStart: timestamp("trial_start"),
-  trialEnd: timestamp("trial_end"),
-  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
-  cancelAt: timestamp("cancel_at"),
-  canceledAt: timestamp("canceled_at"),
-  endedAt: timestamp("ended_at"),
-  seats: integer("seats"),
-  billingInterval: text("billing_interval"),
-  stripeScheduleId: text("stripe_schedule_id"),
-});
-
 // ==========================================
-// 2. CORE APP TABLES
+// 2. CORE APP TABLES (CUID2 GENERATED IDs)
 // ==========================================
 
 export const note = pgTable("note", {
@@ -249,7 +227,7 @@ export const usageEvent = pgTable("usage_event", {
 });
 
 // ==========================================
-// 3. DRIZZLE RELATIONS (COMPLETED)
+// 3. DRIZZLE RELATIONS (BETTER AUTH + APP)
 // ==========================================
 
 export const userRelations = relations(user, ({ many }) => ({
@@ -313,44 +291,4 @@ export const noteRelations = relations(note, ({ one, many }) => ({
   transcripts: many(transcript),
   summaries: many(summary),
   documentChunks: many(documentChunk),
-}));
-
-export const transcriptRelations = relations(transcript, ({ one }) => ({
-  note: one(note, {
-    fields: [transcript.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [transcript.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const summaryRelations = relations(summary, ({ one }) => ({
-  note: one(note, {
-    fields: [summary.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [summary.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const documentChunkRelations = relations(documentChunk, ({ one }) => ({
-  note: one(note, {
-    fields: [documentChunk.noteId],
-    references: [note.id],
-  }),
-  organization: one(organization, {
-    fields: [documentChunk.organizationId],
-    references: [organization.id],
-  }),
-}));
-
-export const usageEventRelations = relations(usageEvent, ({ one }) => ({
-  organization: one(organization, {
-    fields: [usageEvent.organizationId],
-    references: [organization.id],
-  }),
 }));
