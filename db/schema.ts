@@ -176,6 +176,8 @@ export const note = pgTable("note", {
   title: text("title").notNull(),
   content: text("content"),
   status: text("status").default("draft").notNull(),
+  audioKey: text("audio_key"),
+  errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -225,7 +227,7 @@ export const documentChunk = pgTable(
       .notNull()
       .references(() => note.id, { onDelete: "cascade" }),
     chunkText: text("chunk_text").notNull(),
-    embedding: vector("embedding", { dimensions: 768 }),
+    embedding: vector("embedding", { dimensions: 768 }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),
     deletedBy: text("deleted_by"),
