@@ -18,8 +18,8 @@ async function getActiveSubscription(orgId: string) {
   );
 }
 
-// Is org ki limits nikalo (plan ke hisab se)
-async function getLimitsForOrg(orgId: string) {
+// ⭐ CHANGED: Is org ki limits nikalo (export add kiya)
+export async function getLimitsForOrg(orgId: string) {
   const sub = await getActiveSubscription(orgId);
 
   if (!sub) {
@@ -30,8 +30,8 @@ async function getLimitsForOrg(orgId: string) {
   return plan?.limits ?? FREE_LIMITS;
 }
 
-// Is org ne kitne notes banaye (soft-deleted skip)
-async function countNotes(orgId: string) {
+// ⭐ CHANGED: Is org ne kitne notes banaye (export add kiya)
+export async function countNotes(orgId: string) {
   const [row] = await db
     .select({ value: count() })
     .from(note)
@@ -61,4 +61,11 @@ export async function canPerformAction(
   }
 
   return { allowed: false, reason: "Unknown action" };
+}
+
+// 🛠️ Step 8: Usage batane wala helper (Naya export add kiya)
+export async function getUsageInfo(orgId: string) {
+  const limits = await getLimitsForOrg(orgId); 
+  const used = await countNotes(orgId);         
+  return { used, limit: limits.notes };
 }

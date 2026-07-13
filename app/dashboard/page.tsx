@@ -1,13 +1,15 @@
+import { Chat } from "@/components/chat"; 
 import { getSession } from "@/lib/get-session";
 import { getActiveOrgId } from "@/lib/get-active-org";
 import { getNotesForOrg } from "@/lib/notes";
 import { createNote } from "@/lib/actions";
 import { redirect } from "next/navigation";
-import { canPerformAction } from "@/lib/entitlements"; // Entitlement check import
+import { canPerformAction, getUsageInfo } from "@/lib/entitlements"; // 👈 CHANGED: getUsageInfo import kiya
 
-// Step 15: Naye components import kiye
+// Step 15 & Usage Meter: Naye components import kiye
 import { UploadForm } from "@/components/upload-form";
 import { NoteStatus } from "@/components/note-status";
+import { UsageMeter } from "@/components/usage-meter"; // 👈 ADDED: UsageMeter component import kiya
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -15,6 +17,9 @@ export default async function DashboardPage() {
 
   const orgId = await getActiveOrgId();
   const notes = orgId ? await getNotesForOrg(orgId) : [];
+
+  // 📊 Usage Engine: Usage data fetch karo (agar org nahi hai toh fallback limits lagengi)
+  const usage = orgId ? await getUsageInfo(orgId) : { used: 0, limit: 3 };
 
   // 🧪 TEMPORARY TEST: Entitlement check karne ke liye log
   if (orgId) {
@@ -31,6 +36,11 @@ export default async function DashboardPage() {
       <p>Welcome, {session.user.name || session.user.email}!</p>
       <p style={{ color: "gray", fontSize: 12 }}>Active Org: {orgId}</p>
 
+      {/* ---- USAGE METER SECTION ---- */}
+      <div style={{ margin: "20px 0", padding: "10px 0" }}>
+        <UsageMeter used={usage.used} limit={usage.limit} />
+      </div>
+
       {/* ---- NAYA NOTE FORM ---- */}
       <form
         action={createNote}
@@ -41,7 +51,7 @@ export default async function DashboardPage() {
         <button type="submit">Note Save Karo</button>
       </form>
 
-      {/* ---- Step 15: Upload Form (Yahan add kiya hai form ke neche) ---- */}
+      {/* ---- Step 15: Upload Form ---- */}
       <div style={{ margin: "20px 0", padding: "15px 0", borderTop: "1px solid #eee", borderBottom: "1px solid #eee" }}>
         <UploadForm />
       </div>
@@ -53,11 +63,9 @@ export default async function DashboardPage() {
       ) : (
         <ul style={{ paddingLeft: 20, listStyleType: "none" }}>
           {notes.map((n) => (
-            // Style ko margin-bottom: 12 kar diya hai jaisa instruction mein tha
             <li key={n.id} style={{ marginBottom: 12, padding: "8px 0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <strong>{n.title}</strong>
-                {/* Step 15: NoteStatus add kiya, id pass karte hue */}
                 <NoteStatus noteId={n.id} initialStatus={n.status} />
               </div>
               {n.content && <p style={{ margin: "4px 0 0 0", color: "gray" }}>{n.content}</p>}
@@ -65,6 +73,13 @@ export default async function DashboardPage() {
           ))}
         </ul>
       )}
+
+      {/* ---- Step 7: Chat Component Section ---- */}
+      <div style={{ marginTop: 30, paddingTop: 20, borderTop: "2px solid #ccc" }}>
+        <h2>Chat Support</h2>
+        <Chat />
+      </div>
+
     </div>
   );
 }

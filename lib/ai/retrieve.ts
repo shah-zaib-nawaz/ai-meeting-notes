@@ -5,21 +5,22 @@ import { db } from "@/db";
 import { documentChunk } from "@/db/schema";
 
 export async function retrieveRelevantChunks(query: string, orgId: string) {
-  // Generate query embedding
+  // Generate query embedding matching the pipeline model and dimensions
   const { embedding } = await embed({
-  model: google.textEmbedding("gemini-embedding-001"),
-  value: query,
-  providerOptions: {
+    model: google.textEmbedding("gemini-embedding-001"), 
+    value: query,
+    providerOptions: {
       google: {
-        outputDimensionality: 768,
+        outputDimensionality: 768, 
       },
     },
-});
+  });
 
-  // cosine similarity
-  const similarity = sql<number>`
-    1 - (${documentChunk.embedding} <=> ${embedding})
-  `;
+  // Vector array ko safely format karein JSON string mein jo pgvector easily accept kare
+  const embeddingJson = JSON.stringify(embedding);
+
+  // Cosine distance calculation with correct type binding
+  const similarity = sql<number>`1 - (${documentChunk.embedding} <=> ${embeddingJson}::vector)`;
 
   const results = await db
     .select({
@@ -32,7 +33,7 @@ export async function retrieveRelevantChunks(query: string, orgId: string) {
       and(
         eq(documentChunk.organizationId, orgId),
         isNull(documentChunk.deletedAt),
-        gt(similarity, 0.3)
+        gt(similarity, 0.25) // Slightly lower for broader testing
       )
     )
     .orderBy(desc(similarity))

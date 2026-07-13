@@ -7,6 +7,8 @@ import { getSession } from "@/lib/get-session";
 import { revalidatePath } from "next/cache";
 import { inngest } from "@/lib/inngest/client";
 import { and, eq } from "drizzle-orm";
+// ⭐ Step 2: Usage recorder import kiya gaya hai
+import { recordUsage } from "@/lib/usage";
 
 export async function createNote(formData: FormData) {
   // 1. Login check
@@ -35,6 +37,9 @@ export async function createNote(formData: FormData) {
     title: title.trim(),
     content: content?.trim() || null,
   });
+
+  // ⭐ Step 2: Note successfully create hone ke baad usage record ho rahi hai
+  await recordUsage(orgId, "note_created");
 
   // 5. Refresh dashboard
   revalidatePath("/dashboard");
@@ -104,6 +109,9 @@ export async function startProcessing(
       audioKey: objectKey,
     })
     .returning();
+
+  // ⭐ Step 2: Queued note insert hone ke baad usage record ho rahi hai
+  await recordUsage(orgId, "note_created");
 
   // Trigger background processing pipeline
   await inngest.send({
